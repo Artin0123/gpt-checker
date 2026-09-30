@@ -1,0 +1,39 @@
+name: gpt-checker
+
+on:
+  schedule:
+    # 每 2 天 00:00 UTC：查額度＋送 hi（月底可能連續兩天執行，已知可接受）
+    - cron: "0 0 */2 * *"
+  # 手動執行：只查額度或查額度＋送 hi，由面板右上角的開關決定
+  workflow_dispatch:
+
+# 同時間只跑一個，避免兩個 run 同時 refresh 同一個 token；
+# queue: max 讓多次手動執行排隊，而不是取消前一個 pending run
+concurrency:
+  group: gpt-checker
+  cancel-in-progress: false
+  queue: max
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run
+        env:
+          # Discord webhook 與手動執行模式都在面板設定，這裡只需要面板網址和密碼
+          PANEL_URL: ${{ secrets.PANEL_URL }}
+          PANEL_PASSWORD: ${{ secrets.PANEL_PASSWORD }}
+          TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || 'manual' }}
+          HI_MODEL: ${{ vars.HI_MODEL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npx tsx scripts/gha-run.ts

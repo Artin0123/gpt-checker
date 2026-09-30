@@ -1,0 +1,8 @@
+name = "gpt-checker"
+pages_build_output_dir = "public"
+compatibility_date = "2026-09-01"
+
+# KV namespace: gpt-checker-accounts
+[[kv_namespaces]]
+binding = "ACCOUNTS"
+id = "f036a36953e24d2d80044aec2f5bdcf0"
