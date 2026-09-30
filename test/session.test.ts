@@ -1,38 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { createSessionToken, readCookie, verifySessionToken, SESSION_TTL_SECONDS } from "../src/lib/session";
+import { createSession, deleteSession, readCookie, verifySession, SESSION_TTL_SECONDS } from "../src/lib/session";
 import { b64urlDecode, b64urlEncode, secretEquals } from "../src/lib/crypto";
+import { call, makeEnv, TEST_PASSWORD } from "./helpers";
 
-const SECRET = "secret-for-tests-0123456789abcdef";
-
-describe("session token", () => {
-  it("簽章後可驗章", async () => {
-    const token = await createSessionToken(SECRET);
-    expect(await verifySessionToken(token, SECRET)).toBe(true);
+describe("KV session", () => {
+  it("建立後可驗證；KV 只存雜湊不存 token；TTL 7 天", async () => {
+    const env = makeEnv();
+    const token = await createSession(env);
+    expect(await verifySession(env, token)).toBe(true);
+    const [key] = [...env.kv.store.keys()];
+    expect(key.startsWith("session:")).toBe(true);
+    expect(key).not.toContain(token);
+    expect(env.kv.store.get(key)!.expiresAt).toBeGreaterThan(Date.now() + (SESSION_TTL_SECONDS - 5) * 1000);
   });
 
-  it("換 secret 驗章失敗", async () => {
-    const token = await createSessionToken(SECRET);
-    expect(await verifySessionToken(token, SECRET + "x")).toBe(false);
+  it("刪除後失效；別的 token 不通過", async () => {
+    const env = makeEnv();
+    const token = await createSession(env);
+    const other = await createSession(env);
+    await deleteSession(env, token);
+    expect(await verifySession(env, token)).toBe(false);
+    expect(await verifySession(env, other)).toBe(true);
   });
 
-  it("竄改 exp 或簽章都會被拒絕", async () => {
-    const token = await createSessionToken(SECRET);
-    const [v, exp, sig] = token.split(".");
-    expect(await verifySessionToken(`${v}.${Number(exp) + 999}.${sig}`, SECRET)).toBe(false);
-    const flipped = sig.slice(0, -2) + (sig.endsWith("AA") ? "BB" : "AA");
-    expect(await verifySessionToken(`${v}.${exp}.${flipped}`, SECRET)).toBe(false);
-  });
-
-  it("過期會被拒絕", async () => {
-    const issued = Date.now() - (SESSION_TTL_SECONDS + 10) * 1000;
-    const token = await createSessionToken(SECRET, issued);
-    expect(await verifySessionToken(token, SECRET)).toBe(false);
-  });
-
-  it("格式錯誤回 false 不丟例外", async () => {
-    for (const bad of ["", "abc", "v1.x.y", "v2.1.abc", "v1.123.!!!"]) {
-      expect(await verifySessionToken(bad, SECRET)).toBe(false);
+  it("格式錯誤回 false 且不查 KV（含舊版 v1 簽章 cookie）", async () => {
+    const env = makeEnv();
+    env.kv.resetOps();
+    for (const bad of ["", "abc", "v1.123.abcdefghijklmnopqrstuvwxyz0123456789", "!".repeat(43)]) {
+      expect(await verifySession(env, bad)).toBe(false);
     }
+    expect(env.kv.ops.get).toBe(0);
+  });
+
+  it("登入寫 1 次、登出刪 1 次，登出後 cookie 失效", async () => {
+    const env = makeEnv();
+    const login = await call(env, "POST", "/api/login", { body: { password: TEST_PASSWORD } });
+    expect(env.kv.ops.put).toBe(1);
+    const cookie = login.headers.get("Set-Cookie")!.split(";")[0];
+    expect((await call(env, "GET", "/api/me", { headers: { Cookie: cookie } })).status).toBe(200);
+    await call(env, "POST", "/api/logout", { headers: { Cookie: cookie } });
+    expect(env.kv.ops.delete).toBe(1);
+    expect((await call(env, "GET", "/api/me", { headers: { Cookie: cookie } })).status).toBe(401);
   });
 });
 

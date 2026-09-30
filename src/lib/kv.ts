@@ -263,12 +263,7 @@ export async function updateConfig(env: Env, patch: Partial<PanelConfig>): Promi
   return next;
 }
 
-/** 給面板看的設定：webhook 只露出是否已設定與最後 4 碼 */
+/** 給面板看的設定（面板本身有密碼保護，且匯出本來就含 token，所以 webhook 直接回傳讓欄位保留） */
 export function publicConfig(c: PanelConfig) {
-  return {
-    repoUrl: c.repoUrl,
-    manualMode: c.manualMode,
-    discordWebhookSet: !!c.discordWebhook,
-    discordWebhookHint: c.discordWebhook ? `…${c.discordWebhook.slice(-4)}` : null,
-  };
+  return { repoUrl: c.repoUrl, manualMode: c.manualMode, discordWebhook: c.discordWebhook };
 }

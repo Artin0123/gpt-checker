@@ -126,10 +126,12 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
       result.status = "refreshed";
       result.reason = "已查詢額度";
     } else {
-      const w = hiEligibleWindow(usage, now());
+      const w = hiEligibleWindow(usage);
       if (!w) {
         result.status = "skipped";
-        result.reason = "不符合條件（需剩 100% 且距離重置 ≥ 29 天）";
+        result.reason = usage.windows.some((x) => x.usedPercent === 0)
+          ? "窗口已開始倒數，不用再送"
+          : "已使用過（不是 100%），不用送";
       } else {
         try {
           await sendHi(current, { model: opts.model, effort: opts.effort });

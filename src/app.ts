@@ -35,8 +35,8 @@ function sameOriginOk(request: Request, url: URL): boolean {
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
   // 設定缺漏時一律拒絕（fail closed）
-  if (!env.PANEL_PASSWORD || !env.SESSION_SECRET) {
-    return errorResponse(500, "server misconfigured: PANEL_PASSWORD / SESSION_SECRET not set");
+  if (!env.PANEL_PASSWORD) {
+    return errorResponse(500, "server misconfigured: PANEL_PASSWORD not set");
   }
   const url = new URL(request.url);
 

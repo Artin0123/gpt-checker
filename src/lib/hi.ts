@@ -7,21 +7,30 @@ import {
   UpstreamError,
   describeUpstreamFailure,
 } from "./openai";
-import { secondsUntilReset } from "./usage";
 import type { Account, UsageSnapshot, UsageWindow } from "./types";
 
-export const HI_MIN_RESET_SECONDS = 29 * 86400;
 const HI_TIMEOUT_MS = 90_000;
 const MAX_STREAM_BYTES = 1024 * 1024;
+/** reset_at 與抓取時間可能差 1 秒（實測 2592001 vs 2592000），容許一點誤差 */
+export const UNSTARTED_TOLERANCE_SECONDS = 5;
 
-/** 條件：任一窗口剩 100%（used_percent == 0）且距離重置 ≥ 29 天 */
-export function hiEligibleWindow(usage: UsageSnapshot, now = Date.now()): UsageWindow | null {
-  for (const w of usage.windows) {
-    if (w.usedPercent !== 0) continue;
-    const left = secondsUntilReset(w, usage, now);
-    if (left !== null && left >= HI_MIN_RESET_SECONDS) return w;
-  }
-  return null;
+/**
+ * 窗口還沒開始倒數：以「抓取當下」算，距離重置 == 窗口長度。
+ * 實測（free / go 帳號）：沒用過的窗口每次查詢 reset_after_seconds 都等於 limit_window_seconds，
+ * reset_at 跟著抓取時間往後移；一旦開始使用，reset_at 就固定下來，剩餘秒數開始變少。
+ */
+export function windowNotStarted(w: UsageWindow, usage: UsageSnapshot): boolean {
+  if (w.windowSeconds === null) return false;
+  const left = w.resetAfterSeconds ?? (w.resetAt !== null ? w.resetAt - usage.fetchedAt : null);
+  return left !== null && left >= w.windowSeconds - UNSTARTED_TOLERANCE_SECONDS;
+}
+
+/**
+ * 條件：任一窗口剩 100%（used_percent == 0）且還沒開始倒數。
+ * 已經開始倒數（例如剛送過 hi，用量四捨五入後仍是 0）就不送，避免重送。
+ */
+export function hiEligibleWindow(usage: UsageSnapshot): UsageWindow | null {
+  return usage.windows.find((w) => w.usedPercent === 0 && windowNotStarted(w, usage)) ?? null;
 }
 
 /** 逐塊解析 SSE；事件可能被切在不同 chunk */

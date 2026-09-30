@@ -1,27 +1,32 @@
-import { b64urlDecode, b64urlEncode, hmacSha256, timingSafeEqual } from "./crypto";
+// 登入 session 存在 KV（`session:<sha256(token)>`，TTL 7 天）：
+// 登入寫 1 次、登出刪 1 次、每個已登入的請求讀 1 次。cookie 只放隨機 token，KV 只存雜湊，
+// 看得到 KV 內容也拿不到可用的 cookie。登出會真的讓 session 失效（其他地區最多約 60 秒生效）。
+import type { Env } from "../env";
+import { b64urlEncode, randomToken, sha256 } from "./crypto";
 
 export const SESSION_COOKIE = "gc_session";
 export const SESSION_TTL_SECONDS = 7 * 86400;
+const SESSION_PREFIX = "session:";
+/** randomToken(32) 的格式；不符合就不查 KV */
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-// token 格式：v1.<exp 秒>.<HMAC-SHA256(secret, "v1.<exp>")>
-export async function createSessionToken(secret: string, now = Date.now()): Promise<string> {
-  const exp = Math.floor(now / 1000) + SESSION_TTL_SECONDS;
-  const payload = `v1.${exp}`;
-  return `${payload}.${b64urlEncode(await hmacSha256(secret, payload))}`;
+async function sessionKey(token: string): Promise<string> {
+  return SESSION_PREFIX + b64urlEncode(await sha256(token));
 }
 
-export async function verifySessionToken(token: string, secret: string, now = Date.now()): Promise<boolean> {
-  const parts = token.split(".");
-  if (parts.length !== 3 || parts[0] !== "v1" || !/^\d+$/.test(parts[1])) return false;
-  let given: Uint8Array;
-  try {
-    given = b64urlDecode(parts[2]);
-  } catch {
-    return false;
-  }
-  const expected = await hmacSha256(secret, `v1.${parts[1]}`);
-  if (!timingSafeEqual(given, expected)) return false;
-  return Number(parts[1]) > Math.floor(now / 1000);
+export async function createSession(env: Env, now = Date.now()): Promise<string> {
+  const token = randomToken(32);
+  await env.ACCOUNTS.put(await sessionKey(token), JSON.stringify({ createdAt: now }), { expirationTtl: SESSION_TTL_SECONDS });
+  return token;
+}
+
+export async function verifySession(env: Env, token: string): Promise<boolean> {
+  if (!TOKEN_PATTERN.test(token)) return false;
+  return (await env.ACCOUNTS.get(await sessionKey(token))) !== null;
+}
+
+export async function deleteSession(env: Env, token: string): Promise<void> {
+  if (TOKEN_PATTERN.test(token)) await env.ACCOUNTS.delete(await sessionKey(token));
 }
 
 export function sessionCookie(token: string): string {

@@ -31,17 +31,6 @@ export async function sha256(data: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(data)));
 }
 
-export async function hmacSha256(secret: string, data: string): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  return new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(data)));
-}
-
 export function randomToken(bytes = 32): string {
   return b64urlEncode(crypto.getRandomValues(new Uint8Array(bytes)));
 }

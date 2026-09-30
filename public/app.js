@@ -58,7 +58,7 @@ function setStatus(message, kind = "") {
 let accounts = [];
 /** 畫面上的選取：只存在記憶體，不寫 KV */
 const selected = new Set();
-let config = { repoUrl: null, manualMode: "usage", discordWebhookSet: false, discordWebhookHint: null };
+let config = { repoUrl: null, manualMode: "usage", discordWebhook: null };
 
 // ---------- 格式化 ----------
 
@@ -272,8 +272,9 @@ function renderConfig() {
   $("#repo-url").value = config.repoUrl || "";
   const mode = pendingMode ?? config.manualMode;
   for (const r of document.querySelectorAll("input[name=manual-mode]")) r.checked = r.value === mode;
-  $("#discord-status").textContent = config.discordWebhookSet ? `已設定（${config.discordWebhookHint}）。輸入新網址可覆蓋。` : "尚未設定：送 hi 的結果不會通知。";
-  $("#discord-clear-btn").hidden = !config.discordWebhookSet;
+  $("#discord-url").value = config.discordWebhook || "";
+  $("#discord-status").textContent = config.discordWebhook ? "已設定，送 hi 的結果會通知這個 webhook。" : "尚未設定：送 hi 的結果不會通知。";
+  $("#discord-clear-btn").hidden = !config.discordWebhook;
 }
 
 async function loadConfig() {
@@ -336,7 +337,6 @@ async function onSaveDiscord(e) {
   }
   try {
     await saveConfig({ discordWebhook: value });
-    $("#discord-url").value = "";
     setStatus("已儲存 Discord webhook", "ok");
   } catch (err) {
     setStatus(`儲存失敗：${err.message}`, "danger");

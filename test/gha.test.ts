@@ -88,21 +88,19 @@ describe("啟用 / 刪除 / 設定 API", () => {
     expect((await call(env, "PUT", "/api/config", { headers: bearer, body: { manualMode: "both" } })).status).toBe(400);
   });
 
-  it("Discord webhook：只接受 Discord 網址；面板只看得到是否已設定與最後 4 碼；可清除", async () => {
+  it("Discord webhook：只接受 Discord 網址；儲存後面板讀得回完整網址；改其他欄位不會清掉；可清除", async () => {
     const env = makeEnv();
     const get = async () => ((await (await call(env, "GET", "/api/config", { headers: bearer })).json()) as { config: Record<string, unknown> }).config;
     for (const bad of ["https://example.com/api/webhooks/1/x", "http://discord.com/api/webhooks/1/x", "https://discord.com/api/webhooks/x/y", 5]) {
       expect((await call(env, "PUT", "/api/config", { headers: bearer, body: { discordWebhook: bad } })).status).toBe(400);
     }
     const res = await call(env, "PUT", "/api/config", { headers: bearer, body: { discordWebhook: WEBHOOK } });
-    expect(await res.text()).not.toContain("abc-DEF_ghij");
-    expect(await get()).toMatchObject({ discordWebhookSet: true, discordWebhookHint: "…ghij" });
-    expect(JSON.stringify(await get())).not.toContain("api/webhooks");
-    // 改其他欄位不會清掉 webhook
+    expect(((await res.json()) as { config: { discordWebhook: string } }).config.discordWebhook).toBe(WEBHOOK);
+    expect((await get()).discordWebhook).toBe(WEBHOOK);
     await call(env, "PUT", "/api/config", { headers: bearer, body: { manualMode: "hi" } });
-    expect((await get()).discordWebhookSet).toBe(true);
+    expect((await get()).discordWebhook).toBe(WEBHOOK);
     await call(env, "PUT", "/api/config", { headers: bearer, body: { discordWebhook: "" } });
-    expect(await get()).toMatchObject({ discordWebhookSet: false, discordWebhookHint: null });
+    expect((await get()).discordWebhook).toBeNull();
   });
 
   it("舊版 config.ghaUrl 會被讀成 repoUrl", async () => {

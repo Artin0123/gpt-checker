@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import { secretEquals } from "./crypto";
-import { SESSION_COOKIE, readCookie, verifySessionToken } from "./session";
+import { SESSION_COOKIE, readCookie, verifySession } from "./session";
 
 export function passwordMatches(given: string, env: Env): Promise<boolean> {
   return secretEquals(given, env.PANEL_PASSWORD);
@@ -14,5 +14,5 @@ export async function isAuthorized(request: Request, env: Env): Promise<boolean>
     return match ? passwordMatches(match[1], env) : false;
   }
   const token = readCookie(request, SESSION_COOKIE);
-  return token ? verifySessionToken(token, env.SESSION_SECRET) : false;
+  return token ? verifySession(env, token) : false;
 }

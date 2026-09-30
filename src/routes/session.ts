@@ -1,6 +1,6 @@
 import { HttpError, json, readJson } from "../http";
 import { passwordMatches } from "../lib/auth";
-import { clearSessionCookie, createSessionToken, sessionCookie } from "../lib/session";
+import { SESSION_COOKIE, clearSessionCookie, createSession, deleteSession, readCookie, sessionCookie } from "../lib/session";
 import type { Handler } from "../router";
 
 export const login: Handler = async ({ request, env }) => {
@@ -8,10 +8,14 @@ export const login: Handler = async ({ request, env }) => {
   if (typeof body.password !== "string" || !(await passwordMatches(body.password, env))) {
     throw new HttpError(401, "invalid password");
   }
-  const token = await createSessionToken(env.SESSION_SECRET);
+  const token = await createSession(env);
   return json({ ok: true }, 200, { "Set-Cookie": sessionCookie(token) });
 };
 
-export const logout: Handler = async () => json({ ok: true }, 200, { "Set-Cookie": clearSessionCookie() });
+export const logout: Handler = async ({ request, env }) => {
+  const token = readCookie(request, SESSION_COOKIE);
+  if (token) await deleteSession(env, token);
+  return json({ ok: true }, 200, { "Set-Cookie": clearSessionCookie() });
+};
 
 export const me: Handler = async () => json({ ok: true });

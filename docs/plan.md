@@ -7,7 +7,7 @@
 - Cloudflare（Pages / Workers）連不到 chatgpt.com（見下方「查額度失敗的選項」），所以查額度、refresh token、送 hi 全部在 GHA runner 上執行。
 - 面板只顯示 GHA 寫回的結果，不會自己查，也不觸發 GHA（不用 GitHub token / PAT）。
 - 單一 workflow `hi.yml`（`concurrency: gpt-checker`，`queue: max` 讓多次手動執行排隊；已在 probe repo 實測）：
-  - 排程（每 2 天）：固定查額度＋送 hi。符合條件（剩 100% 且距離重置 ≥ 29 天）才送 hi；每次通知 Discord。
+  - 排程（每 2 天）：固定查額度＋送 hi。符合條件才送 hi（見下方「送 hi 條件」）；每次通知 Discord。
   - 手動（workflow_dispatch）：做什麼由面板右上角開關決定（存在 KV `config.manualMode`，GHA 執行時向面板讀）。
     - `只查額度`（預設）：不送 hi、不寫 `lastRun`、**不發任何通知**（有異常時 run 會顯示失敗）。
     - `查額度＋送 hi`：同排程。
@@ -92,9 +92,20 @@
 | gh token 權限                   | 沒有 `delete_repo`，刪不掉自己建的 probe repo                                                                                                                        | 需手動刪除 `Artin0123/gpt-checker-probe`                      |
 
 **已建立的資源**
-- Cloudflare Pages 專案 `gpt-checker`（production：https://gpt-checker.pages.dev ），secrets：`PANEL_PASSWORD`、`SESSION_SECRET`（值在本機 `.deploy-secrets.local`，已 gitignore）。
-- KV namespace `gpt-checker-accounts`（id 寫在 wrangler.toml）。
+- Cloudflare Pages 專案 `gpt-checker`（production：https://gpt-checker.pages.dev ，已連 GitHub `Artin0123/gpt-checker` 自動部署；組建命令空、輸出 `public`、根目錄空）。
+  - 環境變數：只需要 `PANEL_PASSWORD`；`SESSION_SECRET` 已不再使用，可刪除。
+  - KV 綁定 `ACCOUNTS` → `gpt-checker-accounts`，在 Pages 設定頁手動綁定（repo 沒有 wrangler.toml）。
 - 暫時用的私有 repo `Artin0123/gpt-checker-probe`（需手動刪除）。
+
+**送 hi 條件**（`src/lib/hi.ts`）
+- 任一窗口 `used_percent == 0`（剩 100%）**且窗口還沒開始倒數**才送。
+- 「還沒開始倒數」= 以抓取當下計算，距離重置 == 窗口長度（容許 5 秒誤差）。實測 free / go 帳號：沒用過的窗口每次查詢 `reset_after_seconds` 都等於 `limit_window_seconds`（2592000），`reset_at` 跟著查詢時間往後移；開始使用後 `reset_at` 固定，剩餘秒數變少。
+- 好處：剛送完 hi、用量四捨五入仍是 0 時不會重送（舊規則「距離重置 ≥ 29 天」在送完後 24 小時內會重送）。
+- 不看方案；付費方案（5 小時 / 每週窗口）的邏輯目前沒有帳號可驗證，未另外處理。
+
+**登入 session**（`src/lib/session.ts`）
+- 存在 KV `session:<sha256(token)>`，TTL 7 天；cookie 只放隨機 token。登入寫 1 次、登出刪 1 次、每個已登入請求讀 1 次。
+- 登出會真的讓 session 失效（其他地區最多約 60 秒）。舊版 HMAC cookie 會被視為無效，需重新登入一次。
 
 **GHA 需要的設定**
 - secrets：`PANEL_URL`、`PANEL_PASSWORD`（Discord webhook 改在面板設定）。

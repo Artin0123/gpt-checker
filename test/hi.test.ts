@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HI_MIN_RESET_SECONDS, SseParser, buildHiBody, classifyEvent, hiEligibleWindow, sendHi } from "../src/lib/hi";
+import { SseParser, buildHiBody, classifyEvent, hiEligibleWindow, sendHi } from "../src/lib/hi";
 import { RESPONSES_URL } from "../src/lib/openai";
 import type { UsageSnapshot } from "../src/lib/types";
 import { mockFetch } from "./fetch-mock";
@@ -13,29 +13,35 @@ const snap = (windows: Partial<UsageSnapshot["windows"][number]>[]): UsageSnapsh
   windows: windows.map((w, i) => ({ name: `w${i}`, usedPercent: 0, windowSeconds: 2592000, resetAt: null, resetAfterSeconds: null, ...w })),
 });
 
-describe("hiEligibleWindow", () => {
-  it("剛好 29 天符合、少 1 秒不符合", () => {
-    expect(hiEligibleWindow(snap([{ resetAfterSeconds: HI_MIN_RESET_SECONDS }]), NOW)).not.toBeNull();
-    expect(hiEligibleWindow(snap([{ resetAfterSeconds: HI_MIN_RESET_SECONDS - 1 }]), NOW)).toBeNull();
+describe("hiEligibleWindow（剩 100% 且窗口還沒開始倒數）", () => {
+  it("實測的未使用窗口：reset_after == 窗口長度、reset_at 比抓取時間多 1 秒，都符合", () => {
+    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 }]))).not.toBeNull();
+    expect(hiEligibleWindow(snap([{ resetAt: NOW / 1000 + 2592001 }]))).not.toBeNull();
+  });
+
+  it("已開始倒數（剛送過 hi、用量四捨五入仍是 0）不重送", () => {
+    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 60 }]))).toBeNull();
+    expect(hiEligibleWindow(snap([{ resetAt: NOW / 1000 + 29.5 * 86400 }]))).toBeNull();
+  });
+
+  it("容許幾秒誤差，超過就視為已開始", () => {
+    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 5 }]))).not.toBeNull();
+    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 6 }]))).toBeNull();
   });
 
   it("用了 1%（剩 99%）不符合", () => {
-    expect(hiEligibleWindow(snap([{ usedPercent: 1, resetAfterSeconds: 2592000 }]), NOW)).toBeNull();
+    expect(hiEligibleWindow(snap([{ usedPercent: 1, resetAfterSeconds: 2592000 }]))).toBeNull();
   });
 
-  it("沒有窗口、沒有重置時間都不符合", () => {
-    expect(hiEligibleWindow(snap([]), NOW)).toBeNull();
-    expect(hiEligibleWindow(snap([{}]), NOW)).toBeNull();
+  it("沒有窗口、沒有窗口長度、沒有重置時間都不符合", () => {
+    expect(hiEligibleWindow(snap([]))).toBeNull();
+    expect(hiEligibleWindow(snap([{}]))).toBeNull();
+    expect(hiEligibleWindow(snap([{ windowSeconds: null, resetAfterSeconds: 2592000 }]))).toBeNull();
   });
 
-  it("沒有 reset_after_seconds 時用 reset_at；任一窗口符合即可", () => {
-    const s = snap([{ usedPercent: 50, resetAfterSeconds: 2592000 }, { name: "x", resetAt: NOW / 1000 + 30 * 86400 }]);
-    expect(hiEligibleWindow(s, NOW)?.name).toBe("x");
-  });
-
-  it("reset_after_seconds 會扣掉抓取後經過的時間", () => {
-    const s = snap([{ resetAfterSeconds: HI_MIN_RESET_SECONDS + 10 }]);
-    expect(hiEligibleWindow(s, NOW + 11_000)).toBeNull();
+  it("任一窗口符合即可；不看方案、窗口長度（5 小時窗口未使用也符合）", () => {
+    const s = snap([{ usedPercent: 50, resetAfterSeconds: 2592000 }, { name: "x", windowSeconds: 18000, resetAfterSeconds: 18000 }]);
+    expect(hiEligibleWindow(s)?.name).toBe("x");
   });
 });
 

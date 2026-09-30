@@ -1,3 +1,2 @@
 # 複製成 .dev.vars 供 `wrangler pages dev` 本機使用（.dev.vars 已被 gitignore）
 PANEL_PASSWORD=change-me-to-a-long-random-password
-SESSION_SECRET=change-me-to-at-least-32-random-chars

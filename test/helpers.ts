@@ -61,7 +61,6 @@ export function makeEnv(overrides: Partial<Env> = {}): Env & { kv: MemoryKV } {
   return {
     ACCOUNTS: kv as unknown as KVNamespace,
     PANEL_PASSWORD: TEST_PASSWORD,
-    SESSION_SECRET: "test-session-secret-0123456789abcdef",
     kv,
     ...overrides,
   };
