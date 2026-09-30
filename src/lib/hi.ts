@@ -13,7 +13,7 @@ import type { Account, UsageSnapshot, UsageWindow } from "./types";
 const HI_TIMEOUT_MS = 90_000;
 const MAX_STREAM_BYTES = 1024 * 1024;
 /** reset_at 與抓取時間可能差 1 秒（實測 2592001 vs 2592000），容許一點誤差 */
-export const UNSTARTED_TOLERANCE_SECONDS = 5;
+export const UNSTARTED_TOLERANCE_SECONDS = 10;
 
 /**
  * 窗口還沒開始倒數：以「抓取當下」算，距離重置 == 窗口長度。
@@ -27,11 +27,11 @@ export function windowNotStarted(w: UsageWindow, usage: UsageSnapshot): boolean 
 }
 
 /**
- * 條件：任一窗口剩 100%（used_percent == 0）且還沒開始倒數。
+ * 條件：任一窗口還沒開始倒數。不用看剩餘 %：用過就會開始倒數，沒倒數就一定是 100%。
  * 已經開始倒數（例如剛送過 hi，用量四捨五入後仍是 0）就不送，避免重送。
  */
 export function hiEligibleWindow(usage: UsageSnapshot): UsageWindow | null {
-  return usage.windows.find((w) => w.usedPercent === 0 && windowNotStarted(w, usage)) ?? null;
+  return usage.windows.find((w) => windowNotStarted(w, usage)) ?? null;
 }
 
 /** 逐塊解析 SSE；事件可能被切在不同 chunk */

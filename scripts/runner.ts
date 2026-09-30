@@ -142,9 +142,7 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
       const w = hiEligibleWindow(usage);
       if (!w) {
         result.status = "skipped";
-        result.reason = usage.windows.some((x) => x.usedPercent === 0)
-          ? "窗口已開始倒數，不用再送"
-          : "已使用過（不是 100%），不用送";
+        result.reason = usage.windows.length ? "窗口已開始倒數，不用再送" : "沒有額度窗口，不用送";
       } else {
         // 對方回報錯誤仍算已送出（見 HiResult）；只有 401 代表 token 問題，refresh 後重送一次
         let hi = await sendHi(current, { model: opts.model, effort: opts.effort });

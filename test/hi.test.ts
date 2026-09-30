@@ -13,7 +13,7 @@ const snap = (windows: Partial<UsageSnapshot["windows"][number]>[]): UsageSnapsh
   windows: windows.map((w, i) => ({ name: `w${i}`, usedPercent: 0, windowSeconds: 2592000, resetAt: null, resetAfterSeconds: null, ...w })),
 });
 
-describe("hiEligibleWindow（剩 100% 且窗口還沒開始倒數）", () => {
+describe("hiEligibleWindow（窗口還沒開始倒數）", () => {
   it("實測的未使用窗口：reset_after == 窗口長度、reset_at 比抓取時間多 1 秒，都符合", () => {
     expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 }]))).not.toBeNull();
     expect(hiEligibleWindow(snap([{ resetAt: NOW / 1000 + 2592001 }]))).not.toBeNull();
@@ -24,13 +24,14 @@ describe("hiEligibleWindow（剩 100% 且窗口還沒開始倒數）", () => {
     expect(hiEligibleWindow(snap([{ resetAt: NOW / 1000 + 29.5 * 86400 }]))).toBeNull();
   });
 
-  it("容許幾秒誤差，超過就視為已開始", () => {
-    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 5 }]))).not.toBeNull();
-    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 6 }]))).toBeNull();
+  it("容許 10 秒誤差，超過就視為已開始", () => {
+    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 10 }]))).not.toBeNull();
+    expect(hiEligibleWindow(snap([{ resetAfterSeconds: 2592000 - 11 }]))).toBeNull();
   });
 
-  it("用了 1%（剩 99%）不符合", () => {
-    expect(hiEligibleWindow(snap([{ usedPercent: 1, resetAfterSeconds: 2592000 }]))).toBeNull();
+  it("只看窗口、不看剩餘 %", () => {
+    expect(hiEligibleWindow(snap([{ usedPercent: 1, resetAfterSeconds: 2592000 }]))).not.toBeNull();
+    expect(hiEligibleWindow(snap([{ usedPercent: 0, resetAfterSeconds: 2592000 - 60 }]))).toBeNull();
   });
 
   it("沒有窗口、沒有窗口長度、沒有重置時間都不符合", () => {
@@ -40,7 +41,7 @@ describe("hiEligibleWindow（剩 100% 且窗口還沒開始倒數）", () => {
   });
 
   it("任一窗口符合即可；不看方案、窗口長度（5 小時窗口未使用也符合）", () => {
-    const s = snap([{ usedPercent: 50, resetAfterSeconds: 2592000 }, { name: "x", windowSeconds: 18000, resetAfterSeconds: 18000 }]);
+    const s = snap([{ usedPercent: 50, resetAfterSeconds: 2000000 }, { name: "x", windowSeconds: 18000, resetAfterSeconds: 18000 }]);
     expect(hiEligibleWindow(s)?.name).toBe("x");
   });
 });

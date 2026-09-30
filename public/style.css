@@ -21,7 +21,7 @@
   --radius-sm: 8px;
   --gap: 12px;
   --pad-x: 20px;
-  /* 字級：電腦最小 14px；平板 / 手機最小 12px（見下方 media query） */
+  /* 字級：電腦最小 14px；平板 / 手機最小 13px（見下方 media query） */
   --fs-base: 15px;
   --fs-sm: 14px;
   --fs-xs: 14px;
@@ -34,7 +34,7 @@
   :root {
     --fs-base: 14px;
     --fs-sm: 13px;
-    --fs-xs: 12px;
+    --fs-xs: 13px;
   }
 }
 
@@ -557,17 +557,19 @@ tbody tr:hover {
   background: rgb(255 255 255 / 0.02);
 }
 
-/* 帳號欄吃剩下的寬度；email 過長時截斷（完整內容在 title） */
-td.cell-account {
-  width: 100%;
-  max-width: 0;
-}
-
+/* 帳號欄限制寬度，email 過長時截斷（完整內容在 title）；多出來的寬度給「最近送 hi」 */
 .email strong {
   display: block;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .email strong {
+    max-width: 180px;
+  }
 }
 
 .cell-account .row {
@@ -581,8 +583,8 @@ td.cell-gha {
 }
 
 td.cell-run {
+  width: 100%;
   min-width: 190px;
-  max-width: 260px;
 }
 
 /* 錯誤訊息最多 3 行，完整內容在 title */
@@ -611,8 +613,8 @@ td.actions .row {
   padding: 32px;
 }
 
-/* 手機：表格改成一列一張卡片 */
-@media (max-width: 720px) {
+/* 手機 / 直向平板：四欄放不下（實測 861px 以上才不需要橫向捲動），表格改成一列一張卡片 */
+@media (max-width: 860px) {
   .table-wrap {
     overflow-x: visible;
   }
@@ -688,8 +690,6 @@ td.actions .row {
   /* 以下選擇器與桌面版同權重，覆寫桌面的欄寬設定 */
   td.cell-account {
     grid-area: acc;
-    width: auto;
-    max-width: none;
   }
 
   td.cell-gha {
@@ -708,6 +708,7 @@ td.actions .row {
 
   /* 手機寬度夠放完整 email，改成任意處換行而不是截斷 */
   .email strong {
+    max-width: none;
     white-space: normal;
     overflow-wrap: anywhere;
   }
@@ -764,7 +765,7 @@ td.actions .row {
   min-width: 260px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .usage {
     min-width: 0;
   }
