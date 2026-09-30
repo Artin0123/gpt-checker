@@ -8,6 +8,7 @@ import {
   describeUpstreamFailure,
   isCloudflareBlock,
 } from "./openai";
+import { obj, str } from "./json";
 import type { Account, UsageSnapshot, UsageWindow } from "./types";
 
 const HI_TIMEOUT_MS = 90_000;
@@ -60,10 +61,6 @@ export class SseParser {
     return events;
   }
 }
-
-type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
-const str = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 
 export type Terminal = { ok: true } | { ok: false; message: string };
 

@@ -26,9 +26,11 @@ describe("匯出選取的帳號（CPA 格式）", () => {
     expect(r.credential?.tokens.refresh_token).toBe("rt-fake-cpa");
   });
 
-  it("多個帳號：輸出陣列，匯回另一個面板內容一致", async () => {
+  it("多個帳號：輸出陣列，匯回另一個面板內容一致；只讀選取的帳號", async () => {
     const { env, accounts } = await seed();
+    env.kv.resetOps();
     const res = await call(env, "GET", `/api/export?ids=${accounts.map((a) => a.id).join(",")}`, { headers: bearer });
+    expect(env.kv.ops.get).toBe(accounts.length);
     expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="codex-2-accounts.json"');
     const data = (await res.json()) as unknown[];
     expect(data).toHaveLength(2);

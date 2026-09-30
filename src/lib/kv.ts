@@ -26,7 +26,7 @@ export interface PanelConfig {
   repoUrl: string | null;
   /** 手動執行 GHA 時要做什麼；排程固定是 "hi" */
   manualMode: RunMode;
-  /** Discord webhook 網址；只回傳給 GHA（Bearer），面板只看得到是否已設定 */
+  /** Discord webhook 網址；GHA 執行時讀取，面板也會顯示完整網址（見 publicConfig） */
   discordWebhook: string | null;
 }
 
@@ -124,9 +124,11 @@ async function readEnabled(env: Env): Promise<string[] | null> {
 
 /** 把指定帳號設成啟用或停用（整批一次寫入）；結果和現在一樣就不寫 */
 export async function setEnabled(env: Env, ids: string[], enabled: boolean): Promise<string[]> {
-  const accounts = await listAccounts(env);
-  const known = new Set(accounts.map((a) => a.id));
-  const current = accounts.filter((a) => a.enabled).map((a) => a.id).sort();
+  const [index, stored] = await Promise.all([readIndex(env), env.ACCOUNTS.get<string[]>(ENABLED_KEY, "json")]);
+  const known = new Set(index);
+  // 只讀索引與 enabled 兩個 key；還沒存過 enabled（舊資料）才需要讀每個帳號
+  const base = Array.isArray(stored) ? stored : (await listAccounts(env)).filter((a) => a.enabled).map((a) => a.id);
+  const current = base.filter((id) => known.has(id)).sort();
   const set = new Set(current);
   for (const id of ids) {
     if (!known.has(id)) continue;
@@ -134,7 +136,6 @@ export async function setEnabled(env: Env, ids: string[], enabled: boolean): Pro
     else set.delete(id);
   }
   const next = [...set].sort();
-  const stored = await env.ACCOUNTS.get<string[]>(ENABLED_KEY, "json");
   if (!Array.isArray(stored) || !sameJson(next, current)) await env.ACCOUNTS.put(ENABLED_KEY, JSON.stringify(next));
   return next;
 }
@@ -189,12 +190,14 @@ export function toSummary(account: Account): AccountSummary {
  */
 export async function upsertCredentials(env: Env, creds: Credential[], now = new Date()): Promise<StoredAccount[]> {
   const ts = now.toISOString();
-  const out: StoredAccount[] = [];
+  const ids = await Promise.all(creds.map((c) => accountIdFor(c.accountId, c.email)));
+  // 同一次匯入裡重複的帳號只算最後一筆：同一個 key 每秒只能寫 1 次，連寫兩次會被 KV 拒絕
+  const latest = new Map<string, Credential>();
+  creds.forEach((c, i) => latest.set(ids[i], c));
+  const saved = new Map<string, StoredAccount>();
   const newIds: string[] = [];
-  const seen = new Map<string, StoredAccount>();
-  for (const cred of creds) {
-    const id = await accountIdFor(cred.accountId, cred.email);
-    const existing = seen.get(id) ?? (await getStored(env, id));
+  for (const [id, cred] of latest) {
+    const existing = await getStored(env, id);
     const next: StoredAccount = {
       id,
       email: cred.email,
@@ -214,11 +217,11 @@ export async function upsertCredentials(env: Env, creds: Credential[], now = new
       await putStored(env, next);
     }
     if (!existing) newIds.push(id);
-    seen.set(id, next);
-    out.push(next);
+    saved.set(id, next);
   }
-  if (newIds.length) await updateIndex(env, (ids) => newIds.forEach((id) => ids.add(id)));
-  return out;
+  if (newIds.length) await updateIndex(env, (set) => newIds.forEach((id) => set.add(id)));
+  // 與輸入一一對應（重複的帳號回傳同一筆）
+  return ids.map((id) => saved.get(id)!);
 }
 
 /** 整批刪除：每個帳號刪 1 次、索引寫 1 次；enabled / status 裡殘留的 id 讀取時會被忽略 */
@@ -244,7 +247,11 @@ export function isDiscordWebhook(value: string): boolean {
 }
 
 export async function getConfig(env: Env): Promise<PanelConfig> {
-  const c = await env.ACCOUNTS.get<Partial<PanelConfig> & { ghaUrl?: string }>(CONFIG_KEY, "json");
+  return parseConfig(await env.ACCOUNTS.get(CONFIG_KEY));
+}
+
+function parseConfig(raw: string | null): PanelConfig {
+  const c = raw ? (JSON.parse(raw) as Partial<PanelConfig> & { ghaUrl?: string }) : null;
   const rawRepo = c?.repoUrl ?? c?.ghaUrl ?? null;
   return {
     repoUrl: rawRepo ? normalizeRepoUrl(rawRepo) : null,
@@ -257,7 +264,7 @@ export async function getConfig(env: Env): Promise<PanelConfig> {
 /** 部分更新；合併後和現在一樣就不寫（前端也會合併連續切換後才送） */
 export async function updateConfig(env: Env, patch: Partial<PanelConfig>): Promise<PanelConfig> {
   const raw = await env.ACCOUNTS.get(CONFIG_KEY);
-  const next = { ...(await getConfig(env)), ...patch };
+  const next = { ...parseConfig(raw), ...patch };
   const serialized = JSON.stringify(next);
   if (raw !== serialized) await env.ACCOUNTS.put(CONFIG_KEY, serialized);
   return next;

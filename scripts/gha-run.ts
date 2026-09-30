@@ -31,7 +31,11 @@ async function main() {
   console.log(`trigger=${trigger} mode=${mode} accounts=${job.accounts.length}`);
   const results = await runAll(panel, job, { mode, model, effort });
   // log 只印狀態，不印 token
-  for (const r of results) console.log(`[${r.status}] ${r.label}: ${r.reason}${r.anomalies.length ? ` | anomalies: ${r.anomalies.join("; ")}` : ""}`);
+  for (const r of results) {
+    // 失敗時 reason 本身就是第一個異常，不重複印
+    const extra = r.anomalies.filter((m) => m !== r.reason);
+    console.log(`[${r.status}] ${r.label}: ${r.reason}${extra.length ? ` | anomalies: ${extra.join("; ")}` : ""}`);
+  }
 
   if (shouldNotify(mode)) {
     if (!job.discordWebhook) console.log("面板未設定 Discord webhook，略過通知");

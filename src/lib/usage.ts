@@ -1,4 +1,4 @@
-// 純函式：由 GHA 腳本呼叫（Cloudflare Workers 打 chatgpt.com 會被 403 擋，見 docs/plan.md）
+// 純函式：由 GHA 腳本呼叫（Cloudflare Workers 打 chatgpt.com 會被 403 擋，見 docs/pitfalls.md）
 import {
   CODEX_ORIGINATOR,
   CODEX_USER_AGENT,
@@ -7,10 +7,9 @@ import {
   UpstreamError,
   describeUpstreamFailure,
 } from "./openai";
+import { isObj } from "./json";
 import type { Account, UsageSnapshot, UsageWindow } from "./types";
 
-type Obj = Record<string, unknown>;
-const isObj = (v: unknown): v is Obj => !!v && typeof v === "object" && !Array.isArray(v);
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 function parseWindow(name: string, raw: unknown): UsageWindow | null {

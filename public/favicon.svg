@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <title>GPT Checker</title>
+  <!-- 與面板同色系：深藍灰底、藍色額度環（約 75%）、綠色勾勾 -->
+  <rect width="32" height="32" rx="7" fill="#1a2438"/>
+  <circle cx="16" cy="16" r="10" fill="none" stroke="#334463" stroke-width="3"/>
+  <circle cx="16" cy="16" r="10" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"
+    stroke-dasharray="47.1 62.83" transform="rotate(-90 16 16)"/>
+  <path d="M11.5 16.5l3 3 6-6.5" fill="none" stroke="#4ade80" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

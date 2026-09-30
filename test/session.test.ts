@@ -38,7 +38,8 @@ describe("KV session", () => {
     expect(env.kv.ops.put).toBe(1);
     const cookie = login.headers.get("Set-Cookie")!.split(";")[0];
     expect((await call(env, "GET", "/api/me", { headers: { Cookie: cookie } })).status).toBe(200);
-    await call(env, "POST", "/api/logout", { headers: { Cookie: cookie } });
+    const logout = await call(env, "POST", "/api/logout", { headers: { Cookie: cookie } });
+    expect(logout.headers.get("Set-Cookie")).toContain("Max-Age=0");
     expect(env.kv.ops.delete).toBe(1);
     expect((await call(env, "GET", "/api/me", { headers: { Cookie: cookie } })).status).toBe(401);
   });

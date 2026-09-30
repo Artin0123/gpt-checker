@@ -78,7 +78,7 @@ describe("parseImport", () => {
 });
 
 describe("匯入 / 列表 / 刪除 API", () => {
-  it("匯入兩個帳號後列表不含 token，刪除其中一個", async () => {
+  it("匯入兩個帳號後列表不含 token", async () => {
     const env = makeEnv();
     const res = await call(env, "POST", "/api/import", { headers: bearer, body: [cpaCredential(), codexAuthJson()] });
     expect(res.status).toBe(200);
@@ -91,11 +91,6 @@ describe("匯入 / 列表 / 刪除 API", () => {
     expect(text).not.toContain("access_token");
     const { accounts } = JSON.parse(text) as { accounts: { id: string; email: string }[] };
     expect(accounts.map((a) => a.email).sort()).toEqual(["user1@example.com", "user2@example.com"]);
-
-    const del = await call(env, "POST", "/api/accounts/delete", { headers: bearer, body: { ids: [accounts[0].id] } });
-    expect(del.status).toBe(200);
-    const after = (await (await call(env, "GET", "/api/accounts", { headers: bearer })).json()) as { accounts: unknown[] };
-    expect(after.accounts).toHaveLength(1);
   });
 
   it("重複匯入覆蓋 token、保留啟用狀態與 addedAt", async () => {
@@ -134,12 +129,4 @@ describe("匯入 / 列表 / 刪除 API", () => {
     expect(JSON.parse(env.kv.store.get("index:accounts")!.value)).toEqual([]);
   });
 
-  it("刪除不存在的帳號：回傳空清單、不動 KV", async () => {
-    const env = makeEnv();
-    await call(env, "POST", "/api/import", { headers: bearer, body: cpaCredential() });
-    env.kv.resetOps();
-    const res = await call(env, "POST", "/api/accounts/delete", { headers: bearer, body: { ids: ["nope"] } });
-    expect(await res.json()).toEqual({ deleted: [] });
-    expect(env.kv.ops.put + env.kv.ops.delete).toBe(0);
-  });
 });

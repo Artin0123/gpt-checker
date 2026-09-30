@@ -82,12 +82,12 @@ function sseResponse(chunks: string[], status = 200) {
 describe("sendHi", () => {
   const acc = { accountId: "acc-1", tokens: { access_token: "at", refresh_token: "rt", id_token: "" } };
 
-  it("送出 codex-tools 相同的 header 與 body，讀到 completed 成功", async () => {
+  it("送出 codex-tools 相同的 header 與 body，讀到 completed 成功且沒有錯誤", async () => {
     const { calls } = mockFetch({
       [RESPONSES_URL]: () =>
         sseResponse(['data: {"type":"response.created"}\n\n', 'data: {"type":"response.completed","response":{"status":"comp', 'leted"}}\n\n']),
     });
-    await sendHi(acc, { model: "m1", effort: "none" });
+    expect(await sendHi(acc, { model: "m1", effort: "none" })).toEqual({ status: 200, upstreamError: null });
     const h = calls[0].headers;
     expect(h.get("Accept")).toBe("text/event-stream");
     expect(h.get("Originator")).toBe("codex_cli_rs");
@@ -96,11 +96,6 @@ describe("sendHi", () => {
     expect(h.get("session-id")).toMatch(/^[0-9a-f-]{36}$/);
     expect(JSON.parse(calls[0].body)).toEqual(buildHiBody("m1", "none"));
     expect(JSON.parse(calls[0].body)).toMatchObject({ stream: true, store: false, instructions: "" });
-  });
-
-  it("completed 回傳沒有錯誤", async () => {
-    mockFetch({ [RESPONSES_URL]: () => sseResponse(['data: {"type":"response.completed"}\n\n']) });
-    expect(await sendHi(acc, { model: "m", effort: null })).toEqual({ status: 200, upstreamError: null });
   });
 
   it("對方回報的錯誤（failed 事件、沒有終止事件、非 2xx）不 throw，只記在 upstreamError", async () => {

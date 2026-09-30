@@ -1,6 +1,6 @@
 import { HttpError, json, readJson } from "../http";
 import { safeFileName, toCpa } from "../lib/export";
-import { listAccounts, upsertCredentials } from "../lib/kv";
+import { getStored, upsertCredentials } from "../lib/kv";
 import { OAuthCallbackError, completeOAuth, startOAuth, type CallbackInput } from "../lib/oauth";
 import type { Handler } from "../router";
 
@@ -33,10 +33,10 @@ function download(data: unknown, filename: string): Response {
  *   ?ids=a,b  一個帳號是單一物件，多個帳號是陣列（本面板可直接匯回）
  */
 export const exportRoute: Handler = async ({ env, url }) => {
-  const ids = (url.searchParams.get("ids") ?? "").split(",").filter(Boolean);
+  const ids = [...new Set((url.searchParams.get("ids") ?? "").split(",").filter(Boolean))];
   if (ids.length === 0) throw new HttpError(400, "ids is required");
-  const wanted = new Set(ids);
-  const accounts = (await listAccounts(env)).filter((a) => wanted.has(a.id));
+  // 只讀選取的帳號，不用整份列表
+  const accounts = (await Promise.all(ids.map((id) => getStored(env, id)))).filter((a) => a !== null);
   if (accounts.length === 0) throw new HttpError(404, "no matching accounts");
   return accounts.length === 1
     ? download(toCpa(accounts[0]), `codex-${safeFileName(accounts[0].email ?? accounts[0].accountId)}.json`)

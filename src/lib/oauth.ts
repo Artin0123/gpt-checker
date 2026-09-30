@@ -1,7 +1,7 @@
 // OAuth（照 CLIProxyAPI RequestCodexToken + oauth_callback.go）：
 // PKCE 授權網址 → 使用者貼回 localhost callback 網址 → 換 token
 // 在 Pages 端完成：auth.openai.com 從 Cloudflare edge 實測可連（被擋的只有 chatgpt.com）
-// 註：裝置碼登入（deviceauth）帳號預設沒開，需使用者到 ChatGPT 安全性設定啟用，所以不採用，見 docs/plan.md
+// 註：裝置碼登入（deviceauth）帳號預設沒開，需使用者到 ChatGPT 安全性設定啟用，所以不採用，見 docs/pitfalls.md
 import type { Env } from "../env";
 import { b64urlEncode, randomToken } from "./crypto";
 import { claimsOf } from "./jwt";

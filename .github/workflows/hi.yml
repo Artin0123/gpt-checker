@@ -27,7 +27,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --ignore-scripts
       - name: Run
         env:
           # Discord webhook 與手動執行模式都在面板設定，這裡只需要面板網址和密碼
@@ -36,4 +35,6 @@ jobs:
           TRIGGER: ${{ github.event_name == 'schedule' && 'schedule' || 'manual' }}
           HI_MODEL: ${{ vars.HI_MODEL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: npx tsx scripts/gha-run.ts
+        # 腳本沒有執行期依賴，只需要 tsx；不跑 npm ci（devDependencies 含 wrangler / workerd，約 250 MB）
+        # tsx 版本要和 package.json 一致（test/workflow.test.ts 會檢查）
+        run: npx --yes tsx@4.23.15 scripts/gha-run.ts

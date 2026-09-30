@@ -1,7 +1,8 @@
 // 給 GHA 腳本用的端點：只接受 Bearer（不接受瀏覽器 cookie），會回傳 token
 // KV 寫入：token 只在 refresh / 失效時逐帳號寫（必須立刻保存）；額度結果整批寫一次（見 lib/kv.ts）
 import { HttpError, json, readJson } from "../http";
-import { getConfig, getStored, listAccounts, mergeStatus, updateStored } from "../lib/kv";
+import { isObj } from "../lib/json";
+import { getConfig, listAccounts, mergeStatus, updateStored } from "../lib/kv";
 import type { AccountStatus, RunRecord, Tokens, UsageSnapshot } from "../lib/types";
 import type { Handler } from "../router";
 
@@ -12,7 +13,6 @@ function requireBearer(request: Request) {
   }
 }
 
-const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isStrOrNull = (v: unknown) => v === null || typeof v === "string";
 
@@ -58,9 +58,8 @@ function validateTokenPatch(body: unknown): TokenPatch {
 export const ghaTokenRoute: Handler = async ({ request, env, params }) => {
   requireBearer(request);
   const patch = validateTokenPatch(await readJson(request));
-  if (!(await getStored(env, params.id))) throw new HttpError(404, "account not found");
   let applied = false;
-  await updateStored(env, params.id, (a) => {
+  const found = await updateStored(env, params.id, (a) => {
     if (a.tokens.refresh_token !== patch.expectRefreshToken) return;
     applied = true;
     if (patch.tokens) a.tokens = patch.tokens;
@@ -71,6 +70,7 @@ export const ghaTokenRoute: Handler = async ({ request, env, params }) => {
     if (patch.invalid !== undefined) a.invalid = patch.invalid;
     if (patch.invalidReason !== undefined) a.invalidReason = patch.invalidReason;
   });
+  if (!found) throw new HttpError(404, "account not found");
   return json({ tokensApplied: applied });
 };
 

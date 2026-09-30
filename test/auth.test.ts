@@ -41,11 +41,6 @@ describe("API 驗證", () => {
     expect(res.status).toBe(200);
   });
 
-  it("登出清除 cookie", async () => {
-    const res = await call(makeEnv(), "POST", "/api/logout");
-    expect(res.headers.get("Set-Cookie")).toContain("Max-Age=0");
-  });
-
   it("未設定密碼時 fail closed", async () => {
     const res = await call(makeEnv({ PANEL_PASSWORD: "" }), "POST", "/api/login", { body: { password: "" } });
     expect(res.status).toBe(500);

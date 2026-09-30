@@ -202,7 +202,7 @@ function selectedList() {
 }
 
 /** 上方按鈕共用：執行中停用整排按鈕，避免連點重送 */
-async function runBulk(btn, fn) {
+async function runBulk(fn) {
   const buttons = document.querySelectorAll("[role=toolbar] button");
   buttons.forEach((b) => (b.disabled = true));
   try {
@@ -506,11 +506,11 @@ async function init() {
     showLogin();
   });
 
-  $("#reload-btn").addEventListener("click", (e) => runBulk(e.target, () => loadAccounts().then(() => setStatus("已重新載入", "ok"))));
-  $("#enable-btn").addEventListener("click", (e) => runBulk(e.target, () => setEnabled(true)));
-  $("#disable-btn").addEventListener("click", (e) => runBulk(e.target, () => setEnabled(false)));
-  $("#export-btn").addEventListener("click", (e) => runBulk(e.target, downloadExport));
-  $("#delete-btn").addEventListener("click", (e) => runBulk(e.target, deleteSelected));
+  $("#reload-btn").addEventListener("click", () => runBulk(() => loadAccounts().then(() => setStatus("已重新載入", "ok"))));
+  $("#enable-btn").addEventListener("click", () => runBulk(() => setEnabled(true)));
+  $("#disable-btn").addEventListener("click", () => runBulk(() => setEnabled(false)));
+  $("#export-btn").addEventListener("click", () => runBulk(downloadExport));
+  $("#delete-btn").addEventListener("click", () => runBulk(deleteSelected));
   $("#select-all").addEventListener("change", onSelectAll);
   $("#accounts-body").addEventListener("change", onRowSelect);
 

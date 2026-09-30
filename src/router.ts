@@ -11,7 +11,7 @@ export type Handler = (ctx: Ctx) => Promise<Response>;
 
 export interface Route {
   method: string;
-  /** 例如 `/api/accounts/:id/usage` */
+  /** 例如 `/api/gha/accounts/:id/tokens` */
   path: string;
   handler: Handler;
   /** 不需要登入 */

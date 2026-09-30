@@ -39,6 +39,8 @@ describe("啟用 / 刪除 / 設定 API", () => {
     env.kv.resetOps();
     await call(env, "POST", "/api/accounts/enabled", { headers: bearer, body: { ids: [a.id], enabled: true } });
     expect(env.kv.ops.put).toBe(0);
+    // enabled 存在後只讀索引與 enabled，不讀每個帳號
+    expect(env.kv.ops.get).toBe(2);
 
     await call(env, "POST", "/api/accounts/enabled", { headers: bearer, body: { ids: [a.id], enabled: false } });
     expect((await listIds(env)).map((x) => [x.id, x.enabled])).toEqual([
@@ -149,6 +151,19 @@ describe("KV 用量", () => {
     expect(env.kv.ops.put).toBe(0);
   });
 
+  it("同一次匯入含重複帳號：同一個 key 只寫 1 次、以最後一筆為準，回傳仍與輸入一一對應", async () => {
+    const env = makeEnv();
+    const res = await call(env, "POST", "/api/import", {
+      headers: bearer,
+      body: [cpaCredential(), { ...cpaCredential(), refresh_token: "rt-later" }],
+    });
+    const body = (await res.json()) as { imported: { path: string }[] };
+    expect(body.imported.map((i) => i.path)).toEqual(["$[0]", "$[1]"]);
+    const accountPuts = env.kv.putKeys.filter((k) => k.startsWith("account:"));
+    expect(accountPuts).toHaveLength(1);
+    expect(JSON.parse(env.kv.store.get(accountPuts[0])!.value).tokens.refresh_token).toBe("rt-later");
+  });
+
   it("OAuth：開始寫 1 次、成功後刪除 session，沒有其他狀態寫入", async () => {
     const env = makeEnv();
     const { state } = (await (await call(env, "POST", "/api/oauth/start", { headers: bearer })).json()) as { state: string };
@@ -229,6 +244,7 @@ describe("GHA 專用端點", () => {
     for (const body of [{}, { expectRefreshToken: "x", tokens: { access_token: "a" } }, { expectRefreshToken: "x", invalid: "yes" }]) {
       expect((await call(env, "PATCH", `/api/gha/accounts/${id}/tokens`, { headers: bearer, body })).status).toBe(400);
     }
+    expect((await call(env, "PATCH", "/api/gha/accounts/nope/tokens", { headers: bearer, body: { expectRefreshToken: "x" } })).status).toBe(404);
     for (const body of [{}, { updates: [] }, { updates: { [id]: { usage: 5 } } }, { updates: { [id]: { lastRun: "x" } } }]) {
       expect((await call(env, "POST", "/api/gha/status", { headers: bearer, body })).status).toBe(400);
     }
@@ -282,18 +298,22 @@ function account(overrides: Partial<Account> = {}): Account {
 }
 
 function fakePanel(accounts: Account[], opts: { failTokens?: number; failStatus?: number } = {}) {
-  const tokenPatches: { id: string; patch: TokenPatch }[] = [];
+  const tokenPatches: { id: string; patch: TokenPatch; applied: boolean }[] = [];
   const statusPuts: Record<string, Partial<AccountStatus>>[] = [];
   let tokenFailures = opts.failTokens ?? 0;
   let statusFailures = opts.failStatus ?? 0;
+  // 和 ghaTokenRoute 相同的鏈檢查：expectRefreshToken 要等於面板上目前的 refresh token
+  let storedRefreshToken = "rt";
   const panel: PanelClient = {
     async fetchJob() {
       return { accounts, manualMode: "usage", discordWebhook: null };
     },
     async patchTokens(id, patch) {
       if (tokenFailures-- > 0) throw new Error("panel down");
-      tokenPatches.push({ id, patch });
-      return { tokensApplied: true };
+      const applied = patch.expectRefreshToken === storedRefreshToken;
+      if (applied && patch.tokens) storedRefreshToken = patch.tokens.refresh_token;
+      tokenPatches.push({ id, patch, applied });
+      return { tokensApplied: applied };
     },
     async putStatus(updates) {
       if (statusFailures-- > 0) throw new Error("panel down");
@@ -438,6 +458,25 @@ describe("runAccount / runAll", () => {
     expect(hiCalls.map((c) => c.headers.get("Authorization"))).toEqual(["Bearer at", "Bearer at2"]);
   });
 
+  it("同一次執行 refresh 兩次：第二次用上一次寫回的 refresh token 做鏈檢查，兩次都寫回", async () => {
+    const { panel, tokenPatches } = fakePanel([]);
+    mockFetch({
+      [TOKEN_URL]: [
+        () => jsonRes({ access_token: "at2", refresh_token: "rt2", expires_in: 3600 }),
+        () => jsonRes({ access_token: "at3", refresh_token: "rt3", expires_in: 3600 }),
+      ],
+      [USAGE_URL]: [() => jsonRes(freshUsage), () => jsonRes(usedUsage)],
+      [RESPONSES_URL]: [() => jsonRes({ detail: "expired" }, 401), sse([{ type: "response.completed" }])],
+    });
+    const r = await runAccount(panel, account({ expired: "2026-09-29T00:00:00Z" }), { ...opts, mode: "hi" });
+    expect(r.status).toBe("sent");
+    expect(r.anomalies).toEqual([]);
+    expect(tokenPatches.map((p) => [p.patch.expectRefreshToken, p.patch.tokens?.refresh_token, p.applied])).toEqual([
+      ["rt", "rt2", true],
+      ["rt2", "rt3", true],
+    ]);
+  });
+
   it("送 hi 時 GHA 連不上對方才算失敗、列為異常", async () => {
     const { panel } = fakePanel([]);
     mockFetch({
@@ -486,6 +525,16 @@ describe("Discord", () => {
     expect(msgs[0].embeds[1].description).toContain("剩 **99.8%**");
     expect(msgs[0].embeds[1].description).toContain("1.0 天後");
     expect(msgs[0].allowed_mentions).toEqual({ parse: [] });
+  });
+
+  it("embed 合計超過 6000 字就換下一則，即使不到 10 個", () => {
+    const long = (i: number): AccountResult => ({ ...res(i, true), reason: "x".repeat(1500), anomalies: ["x".repeat(1500)] });
+    const msgs = buildDiscordMessages(Array.from({ length: 5 }, (_, i) => long(i)), { now: NOW });
+    expect(msgs.length).toBeGreaterThan(1);
+    for (const m of msgs) {
+      expect(m.embeds.reduce((n, e) => n + e.title.length + e.description.length, 0)).toBeLessThanOrEqual(6000);
+    }
+    expect(msgs.flatMap((m) => m.embeds)).toHaveLength(5);
   });
 
   it("沒有帳號也送一則摘要", () => {

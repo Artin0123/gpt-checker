@@ -84,7 +84,8 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
   }
 
   let current = account;
-  const chain = account.tokens.refresh_token;
+  // 面板上目前的 refresh token；成功寫回後跟著更新，同一次執行 refresh 第二次時鏈檢查才會對上
+  let chain = account.tokens.refresh_token;
 
   const refresh = async () => {
     try {
@@ -96,7 +97,8 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
           () => panel.patchTokens(account.id, { expectRefreshToken: chain, ...fields, invalid: false, invalidReason: null }),
           sleep,
         );
-        if (!tokensApplied) result.anomalies.push("面板上的 token 在執行期間被更新，本次刷新的 token 未寫回");
+        if (tokensApplied) chain = fields.tokens.refresh_token;
+        else result.anomalies.push("面板上的 token 在執行期間被更新，本次刷新的 token 未寫回");
       } catch (err) {
         throw new UpstreamError("refresh_failed", `token 已刷新但寫回面板失敗，帳號可能需要重新登入：${(err as Error).message}`);
       }
@@ -152,9 +154,8 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
         }
         result.status = "sent";
         result.upstreamError = hi.upstreamError;
-        result.reason = hi.upstreamError
-          ? `已送 hi（窗口 ${w.name}；對方回報錯誤，仍算送出：${hi.upstreamError}）`
-          : `已送 hi（窗口 ${w.name}）`;
+        // Discord / log 前面已有「已送 hi」，這裡只寫窗口與對方的錯誤
+        result.reason = hi.upstreamError ? `窗口 ${w.name}；對方回報錯誤，仍算送出：${hi.upstreamError}` : `窗口 ${w.name}`;
         await sleep(3000);
         try {
           usage = await usageWithRetry();
@@ -201,6 +202,8 @@ export async function runAll(panel: PanelClient, job: Job, opts: RunOptions): Pr
 
 const COLOR = { anomaly: 0xdc2626, sent: 0x16a34a, skipped: 0x6b7280, refreshed: 0x2563eb, failed: 0xdc2626 };
 const STATUS_TEXT: Record<RunStatus, string> = { sent: "✅ 已送 hi", skipped: "⏭️ 略過", failed: "❌ 失敗", refreshed: "🔄 已查詢" };
+const MAX_EMBEDS = 10;
+const MAX_EMBED_CHARS = 6000;
 
 function fmtDuration(seconds: number | null): string {
   if (seconds === null) return "?";
@@ -240,11 +243,19 @@ export function buildDiscordMessages(results: AccountResult[], opts: { runUrl?: 
     `**GPT Checker** 已送 ${count("sent")}、略過 ${count("skipped")}、失敗 ${count("failed")}` +
     (anomalies ? `，⚠️ 異常 ${anomalies}` : "") +
     (opts.runUrl ? `\n${opts.runUrl}` : "");
-  const messages = [];
-  for (let i = 0; i < Math.max(1, embeds.length); i += 10) {
-    messages.push({ content: i === 0 ? summary : undefined, embeds: embeds.slice(i, i + 10), allowed_mentions: { parse: [] } });
+  // Discord 限制：一則訊息最多 10 個 embed，所有 embed 的 title + description 合計最多 6000 字
+  const batches: (typeof embeds)[] = [[]];
+  let size = 0;
+  for (const e of embeds) {
+    const len = e.title.length + e.description.length;
+    if (batches.at(-1)!.length === MAX_EMBEDS || size + len > MAX_EMBED_CHARS) {
+      batches.push([]);
+      size = 0;
+    }
+    batches.at(-1)!.push(e);
+    size += len;
   }
-  return messages;
+  return batches.map((b, i) => ({ content: i === 0 ? summary : undefined, embeds: b, allowed_mentions: { parse: [] } }));
 }
 
 /** 只有送 hi 模式通知 Discord；只查額度模式即使有異常也不通知（結果看面板 / GHA log） */

@@ -1,4 +1,5 @@
 import { b64urlDecodeText } from "./crypto";
+import { isObj, obj, str } from "./json";
 
 const AUTH_CLAIM = "https://api.openai.com/auth";
 const PROFILE_CLAIM = "https://api.openai.com/profile";
@@ -9,19 +10,11 @@ export function decodeJwtPayload(token: string | null | undefined): Record<strin
   const parts = token.split(".");
   if (parts.length < 2) return null;
   try {
-    const payload = JSON.parse(b64urlDecodeText(parts[1]));
-    return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : null;
+    const payload: unknown = JSON.parse(b64urlDecodeText(parts[1]));
+    return isObj(payload) ? payload : null;
   } catch {
     return null;
   }
-}
-
-function str(v: unknown): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
-}
-
-function obj(v: unknown): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
 export interface TokenClaims {

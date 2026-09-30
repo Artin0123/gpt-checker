@@ -6,7 +6,7 @@ export function passwordMatches(given: string, env: Env): Promise<boolean> {
   return secretEquals(given, env.PANEL_PASSWORD);
 }
 
-/** 瀏覽器用簽章 cookie，GHA 用 `Authorization: Bearer <PANEL_PASSWORD>` */
+/** 瀏覽器用 session cookie（KV session，見 session.ts），GHA 用 `Authorization: Bearer <PANEL_PASSWORD>` */
 export async function isAuthorized(request: Request, env: Env): Promise<boolean> {
   const auth = request.headers.get("Authorization");
   if (auth !== null) {
