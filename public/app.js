@@ -122,7 +122,12 @@ function renderLastRun(a) {
   return [
     el("span", { className: `badge ${RUN_BADGE[r.status] || ""}` }, RUN_TEXT[r.status] || r.status),
     el("div", { className: "muted small" }, formatTime(r.at)),
-    r.reason && r.status !== "sent" ? el("div", { className: "muted small" }, r.reason) : null,
+    // 長訊息最多顯示 3 行（見 CSS），完整內容放 title
+    r.reason && r.status !== "sent" ? el("div", { className: "muted small break", title: r.reason }, r.reason) : null,
+    // 對方回報錯誤仍算已送出，顯示出來方便查原因
+    r.status === "sent" && r.upstreamError
+      ? el("div", { className: "warn small break", title: r.upstreamError }, `對方回報：${r.upstreamError}`)
+      : null,
   ];
 }
 
@@ -148,11 +153,11 @@ function renderAccounts() {
     return el(
       "tr",
       { className: isSelected ? "is-selected" : "" },
-      el("td", {}, el("input", { type: "checkbox", checked: isSelected, dataset: { id: a.id }, "aria-label": `選取 ${label}` })),
+      el("td", { className: "cell-select" }, el("input", { type: "checkbox", checked: isSelected, dataset: { id: a.id }, "aria-label": `選取 ${label}` })),
       el(
         "td",
-        {},
-        el("div", {}, el("strong", {}, a.email || "（無 email）")),
+        { className: "cell-account" },
+        el("div", { className: "email" }, el("strong", { title: a.email || "" }, a.email || "（無 email）")),
         el(
           "div",
           { className: "row small" },
@@ -161,9 +166,10 @@ function renderAccounts() {
           el("code", { title: a.accountId }, a.accountId.slice(0, 8) + "…"),
         ),
       ),
-      el("td", {}, a.enabled ? el("span", { className: "badge badge-ok" }, "啟用") : el("span", { className: "badge" }, "停用")),
-      el("td", {}, renderUsage(a)),
-      el("td", {}, renderLastRun(a)),
+      el("td", { className: "cell-gha" }, a.enabled ? el("span", { className: "badge badge-ok" }, "啟用") : el("span", { className: "badge" }, "停用")),
+      // data-label：手機的卡片版面沒有表頭，用它顯示欄位名稱
+      el("td", { className: "cell-usage", dataset: { label: "額度" } }, renderUsage(a)),
+      el("td", { className: "cell-run", dataset: { label: "最近送 hi" } }, renderLastRun(a)),
     );
   });
   if (rows.length === 0) rows.push(el("tr", {}, el("td", { colSpan: 5, className: "empty" }, "還沒有帳號，從下方「新增帳號」開始")));

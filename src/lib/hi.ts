@@ -6,6 +6,7 @@ import {
   RESPONSES_URL,
   UpstreamError,
   describeUpstreamFailure,
+  isCloudflareBlock,
 } from "./openai";
 import type { Account, UsageSnapshot, UsageWindow } from "./types";
 
@@ -100,10 +101,21 @@ export function buildHiBody(model: string, effort: string | null) {
   };
 }
 
+/**
+ * 送 hi 的結果：請求送到 OpenAI、對方有回應就算送出，對方回報的錯誤（模型不支援、failed 事件等）
+ * 只記在 upstreamError，不算失敗。只有 GHA 這邊的問題才 throw：連不上 / 逾時、被 Cloudflare 擋（請求沒進到 OpenAI）。
+ */
+export interface HiResult {
+  /** 對方的 HTTP 狀態碼 */
+  status: number;
+  /** 對方回報的錯誤；null 代表正常完成 */
+  upstreamError: string | null;
+}
+
 export async function sendHi(
   account: Pick<Account, "tokens" | "accountId">,
   opts: { model: string; effort: string | null },
-): Promise<void> {
+): Promise<HiResult> {
   let res: Response;
   try {
     res = await fetch(RESPONSES_URL, {
@@ -124,10 +136,14 @@ export async function sendHi(
   } catch (err) {
     throw new UpstreamError("hi_failed", `hi request failed: ${(err as Error).message}`);
   }
-  if (!res.ok || !res.body) {
+  const status = res.status;
+  const upstream = (message: string): HiResult => ({ status, upstreamError: message });
+  if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new UpstreamError("hi_failed", `hi failed: ${describeUpstreamFailure(res.status, body)}`, res.status);
+    if (isCloudflareBlock(body)) throw new UpstreamError("hi_failed", `hi failed: ${describeUpstreamFailure(status, body)}`, status);
+    return upstream(describeUpstreamFailure(status, body));
   }
+  if (!res.body) return upstream("empty response body");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -141,16 +157,15 @@ export async function sendHi(
       for (const ev of parser.feed(decoder.decode(value, { stream: true }))) {
         const t = classifyEvent(ev);
         if (!t) continue;
-        if (t.ok) return;
-        throw new UpstreamError("hi_failed", `hi failed: ${t.message}`);
+        return t.ok ? { status, upstreamError: null } : upstream(t.message);
       }
-      if (total > MAX_STREAM_BYTES) throw new UpstreamError("hi_failed", "hi stream exceeded 1 MiB without completion");
+      if (total > MAX_STREAM_BYTES) return upstream("stream exceeded 1 MiB without completion");
     }
   } catch (err) {
-    if (err instanceof UpstreamError) throw err;
-    throw new UpstreamError("hi_failed", `hi stream error: ${(err as Error).message}`);
+    // 對方已經回 2xx 開始串流，請求已送達；中途斷線只記錄
+    return upstream(`stream error: ${(err as Error).message}`);
   } finally {
     reader.cancel().catch(() => { });
   }
-  throw new UpstreamError("hi_failed", "hi stream ended without a terminal event");
+  return upstream("stream ended without a terminal event");
 }

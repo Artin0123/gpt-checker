@@ -17,7 +17,7 @@ export const CODEX_USER_AGENT = `codex_cli_rs/${CODEX_VERSION}`;
 export const CODEX_ORIGINATOR = "codex_cli_rs";
 
 /** codex-tools DEFAULT_API_PROXY_MODEL */
-export const DEFAULT_HI_MODEL = "gpt-5.6-sol";
+export const DEFAULT_HI_MODEL = "gpt-6-luna";
 
 export const UPSTREAM_TIMEOUT_MS = 25_000;
 
@@ -33,10 +33,15 @@ export class UpstreamError extends Error {
   }
 }
 
+/** 被 Cloudflare 擋下的頁面：請求沒有進到 OpenAI，是執行環境（IP）的問題 */
+export function isCloudflareBlock(body: string): boolean {
+  // 實測：Cloudflare Workers（本機 workerd 與 edge）打 chatgpt.com 會拿到 403「Unable to load site」
+  return /cf-chl|challenge-platform|Just a moment|cf_clearance|Unable to load site/i.test(body);
+}
+
 /** 將上游錯誤回應整理成短訊息；偵測 Cloudflare 擋下的頁面 */
 export function describeUpstreamFailure(status: number, body: string): string {
-  // 實測：Cloudflare Workers（本機 workerd 與 edge）打 chatgpt.com 會拿到 403「Unable to load site」
-  if (/cf-chl|challenge-platform|Just a moment|cf_clearance|Unable to load site/i.test(body)) {
+  if (isCloudflareBlock(body)) {
     return `blocked by Cloudflare (HTTP ${status})`;
   }
   const compact = body.replace(/\s+/g, " ").trim().slice(0, 240);

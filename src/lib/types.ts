@@ -30,6 +30,8 @@ export interface RunRecord {
   mode: RunMode;
   status: RunStatus;
   reason: string | null;
+  /** 送 hi 時對方回報的錯誤（仍算已送出）；舊資料沒有這個欄位 */
+  upstreamError?: string | null;
 }
 
 /**

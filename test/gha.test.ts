@@ -410,12 +410,45 @@ describe("runAccount / runAll", () => {
     expect(calls.map((c) => new URL(c.url).pathname)).toEqual(["/backend-api/wham/usage", "/oauth/token", "/backend-api/wham/usage"]);
   });
 
-  it("送 hi 失敗（例如模型不支援）列為異常", async () => {
+  it("送 hi 時對方回報錯誤（例如模型不支援）仍算已送出，不列為異常，錯誤記在 lastRun", async () => {
     const { panel } = fakePanel([]);
-    mockFetch({ [USAGE_URL]: () => jsonRes(freshUsage), [RESPONSES_URL]: () => jsonRes({ detail: "model not supported" }, 400) });
+    mockFetch({
+      [USAGE_URL]: [() => jsonRes(freshUsage), () => jsonRes(usedUsage)],
+      [RESPONSES_URL]: () => jsonRes({ detail: "model not supported" }, 400),
+    });
+    const r = await runAccount(panel, account(), { ...opts, mode: "hi" });
+    expect(r.status).toBe("sent");
+    expect(r.anomalies).toEqual([]);
+    expect(r.reason).toContain("model not supported");
+    expect(r.statusUpdate?.lastRun).toMatchObject({ status: "sent", upstreamError: expect.stringContaining("model not supported") });
+  });
+
+  it("送 hi 401：refresh 後重送一次", async () => {
+    const { panel, tokenPatches } = fakePanel([]);
+    const { calls } = mockFetch({
+      [USAGE_URL]: [() => jsonRes(freshUsage), () => jsonRes(usedUsage)],
+      [RESPONSES_URL]: [() => jsonRes({ detail: "expired" }, 401), sse([{ type: "response.completed" }])],
+      [TOKEN_URL]: () => jsonRes({ access_token: "at2", refresh_token: "rt2", expires_in: 3600 }),
+    });
+    const r = await runAccount(panel, account(), { ...opts, mode: "hi" });
+    expect(r.status).toBe("sent");
+    expect(r.upstreamError).toBeNull();
+    expect(tokenPatches).toHaveLength(1);
+    const hiCalls = calls.filter((c) => c.url === RESPONSES_URL);
+    expect(hiCalls.map((c) => c.headers.get("Authorization"))).toEqual(["Bearer at", "Bearer at2"]);
+  });
+
+  it("送 hi 時 GHA 連不上對方才算失敗、列為異常", async () => {
+    const { panel } = fakePanel([]);
+    mockFetch({
+      [USAGE_URL]: () => jsonRes(freshUsage),
+      [RESPONSES_URL]: () => {
+        throw new TypeError("fetch failed");
+      },
+    });
     const r = await runAccount(panel, account(), { ...opts, mode: "hi" });
     expect(r.status).toBe("failed");
-    expect(r.anomalies[0]).toContain("model not supported");
+    expect(r.anomalies[0]).toContain("fetch failed");
   });
 
   it("新 token 寫回面板失敗：重試後仍失敗就列為異常", async () => {
@@ -435,6 +468,7 @@ describe("Discord", () => {
     reason: anomaly ? "boom" : "不符合條件",
     usage: { fetchedAt: NOW / 1000, planType: "free", windows: [{ name: "primary", usedPercent: 0.2, windowSeconds: 2592000, resetAt: null, resetAfterSeconds: 86400 }] },
     anomalies: anomaly ? ["boom"] : [],
+    upstreamError: null,
     statusUpdate: null,
   });
 

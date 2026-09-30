@@ -97,7 +97,12 @@ describe("sendHi", () => {
     expect(JSON.parse(calls[0].body)).toMatchObject({ stream: true, store: false, instructions: "" });
   });
 
-  it("failed 事件、沒有終止事件、非 2xx 都算失敗", async () => {
+  it("completed 回傳沒有錯誤", async () => {
+    mockFetch({ [RESPONSES_URL]: () => sseResponse(['data: {"type":"response.completed"}\n\n']) });
+    expect(await sendHi(acc, { model: "m", effort: null })).toEqual({ status: 200, upstreamError: null });
+  });
+
+  it("對方回報的錯誤（failed 事件、沒有終止事件、非 2xx）不 throw，只記在 upstreamError", async () => {
     mockFetch({
       [RESPONSES_URL]: [
         () => sseResponse(['data: {"type":"response.failed","response":{"error":{"message":"nope"}}}\n\n']),
@@ -105,9 +110,25 @@ describe("sendHi", () => {
         () => new Response('{"detail":"The model is not supported"}', { status: 400 }),
       ],
     });
-    await expect(sendHi(acc, { model: "m", effort: null })).rejects.toThrow("nope");
-    await expect(sendHi(acc, { model: "m", effort: null })).rejects.toThrow("without a terminal event");
-    await expect(sendHi(acc, { model: "m", effort: null })).rejects.toThrow("HTTP 400: {\"detail\":\"The model is not supported\"}");
+    expect(await sendHi(acc, { model: "m", effort: null })).toEqual({ status: 200, upstreamError: "response.failed: nope" });
+    expect((await sendHi(acc, { model: "m", effort: null })).upstreamError).toContain("without a terminal event");
+    expect(await sendHi(acc, { model: "m", effort: null })).toEqual({
+      status: 400,
+      upstreamError: 'HTTP 400: {"detail":"The model is not supported"}',
+    });
+  });
+
+  it("GHA 這邊的問題才 throw：連不上、被 Cloudflare 擋", async () => {
+    mockFetch({
+      [RESPONSES_URL]: [
+        () => {
+          throw new TypeError("fetch failed");
+        },
+        () => new Response("<html>Just a moment...</html>", { status: 403 }),
+      ],
+    });
+    await expect(sendHi(acc, { model: "m", effort: null })).rejects.toThrow("hi request failed: fetch failed");
+    await expect(sendHi(acc, { model: "m", effort: null })).rejects.toThrow("blocked by Cloudflare");
   });
 
   it("effort 為 null 時不帶 reasoning", () => {

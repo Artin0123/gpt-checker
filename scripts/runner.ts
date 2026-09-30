@@ -40,6 +40,8 @@ export interface AccountResult {
   reason: string;
   usage: UsageSnapshot | null;
   anomalies: string[];
+  /** 送 hi 時對方回報的錯誤（仍算已送出，不列為異常） */
+  upstreamError: string | null;
   /** 要寫回面板的額度結果；null 表示不用寫（例如已失效的帳號） */
   statusUpdate: Partial<AccountStatus> | null;
 }
@@ -64,7 +66,16 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
   const now = opts.now ?? Date.now;
   const sleep = opts.sleep ?? defaultSleep;
   const label = account.email ?? account.accountId;
-  const result: AccountResult = { id: account.id, label, status: "failed", reason: "", usage: account.usage, anomalies: [], statusUpdate: null };
+  const result: AccountResult = {
+    id: account.id,
+    label,
+    status: "failed",
+    reason: "",
+    usage: account.usage,
+    anomalies: [],
+    upstreamError: null,
+    statusUpdate: null,
+  };
 
   if (account.invalid) {
     result.reason = `refresh token 已失效，請重新登入或匯入（${account.invalidReason ?? "unknown"}）`;
@@ -114,7 +125,9 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
 
   const lastRun = (status: RunStatus, reason: string) =>
     // lastRun 只記錄送 hi 流程；只查額度不覆蓋
-    opts.mode === "hi" ? { lastRun: { at: new Date(now()).toISOString(), mode: opts.mode, status, reason } } : {};
+    opts.mode === "hi"
+      ? { lastRun: { at: new Date(now()).toISOString(), mode: opts.mode, status, reason, upstreamError: result.upstreamError } }
+      : {};
 
   try {
     if (needsRefresh(current, now())) await refresh();
@@ -133,18 +146,17 @@ export async function runAccount(panel: PanelClient, account: Account, opts: Run
           ? "窗口已開始倒數，不用再送"
           : "已使用過（不是 100%），不用送";
       } else {
-        try {
-          await sendHi(current, { model: opts.model, effort: opts.effort });
-        } catch (err) {
-          if (err instanceof UpstreamError && err.status === 401) {
-            await refresh();
-            await sendHi(current, { model: opts.model, effort: opts.effort });
-          } else {
-            throw err;
-          }
+        // 對方回報錯誤仍算已送出（見 HiResult）；只有 401 代表 token 問題，refresh 後重送一次
+        let hi = await sendHi(current, { model: opts.model, effort: opts.effort });
+        if (hi.status === 401) {
+          await refresh();
+          hi = await sendHi(current, { model: opts.model, effort: opts.effort });
         }
         result.status = "sent";
-        result.reason = `已送 hi（窗口 ${w.name}）`;
+        result.upstreamError = hi.upstreamError;
+        result.reason = hi.upstreamError
+          ? `已送 hi（窗口 ${w.name}；對方回報錯誤，仍算送出：${hi.upstreamError}）`
+          : `已送 hi（窗口 ${w.name}）`;
         await sleep(3000);
         try {
           usage = await usageWithRetry();

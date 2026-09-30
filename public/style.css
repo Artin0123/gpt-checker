@@ -20,8 +20,29 @@
   --radius: 12px;
   --radius-sm: 8px;
   --gap: 12px;
+  --pad-x: 20px;
+  /* 字級：電腦最小 14px；平板 / 手機最小 12px（見下方 media query） */
+  --fs-base: 15px;
+  --fs-sm: 14px;
+  --fs-xs: 14px;
   font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", sans-serif;
-  font-size: 15px;
+  font-size: var(--fs-base);
+}
+
+/* 平板 / 手機 */
+@media (max-width: 1024px) {
+  :root {
+    --fs-base: 14px;
+    --fs-sm: 13px;
+    --fs-xs: 12px;
+  }
+}
+
+/* 手機 */
+@media (max-width: 720px) {
+  :root {
+    --pad-x: 16px;
+  }
 }
 
 * {
@@ -39,6 +60,12 @@ body {
   max-width: 1180px;
   margin: 0 auto;
   padding: 24px 20px 64px;
+}
+
+@media (max-width: 720px) {
+  .container {
+    padding: 16px 12px 48px;
+  }
 }
 
 /* ---------- header ---------- */
@@ -61,7 +88,34 @@ body {
 .app-header .subtitle {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
+}
+
+/* 手機：開關獨佔一列，GHA 按鈕與登出在下一列並排撐滿 */
+@media (max-width: 720px) {
+  .app-header {
+    margin-bottom: 16px;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions .segmented {
+    flex: 1 1 100%;
+  }
+
+  .header-actions .segmented label {
+    flex: 1;
+  }
+
+  .header-actions .segmented span {
+    text-align: center;
+  }
+
+  #gha-link {
+    flex: 1;
+  }
 }
 
 /* ---------- 版面 ---------- */
@@ -70,7 +124,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px 20px;
+  padding: 18px var(--pad-x);
 }
 
 .card+.card,
@@ -91,6 +145,7 @@ body {
 .card h2 {
   margin: 0;
   font-size: 1.05rem;
+  white-space: nowrap;
 }
 
 .card h3 {
@@ -117,8 +172,6 @@ body {
 .card-desc+.card-desc {
   margin-top: -10px;
 }
-
-
 
 @media (max-width: 860px) {
   .grid {
@@ -147,11 +200,11 @@ body {
 
 .muted {
   color: var(--muted);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
 }
 
 .small {
-  font-size: 0.82rem;
+  font-size: var(--fs-xs);
 }
 
 .danger {
@@ -160,6 +213,15 @@ body {
 
 .ok {
   color: var(--ok);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+/* 長字串（網址、錯誤訊息）任意處可換行，避免撐破欄寬 */
+.break {
+  overflow-wrap: anywhere;
 }
 
 p {
@@ -178,10 +240,11 @@ li+li {
 
 code {
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 0.85em;
+  font-size: var(--fs-xs);
   background: var(--surface-2);
   padding: 1px 6px;
   border-radius: 6px;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- 表單 ---------- */
@@ -189,7 +252,7 @@ code {
 label {
   display: block;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   margin: 0 0 6px;
 }
 
@@ -223,7 +286,7 @@ textarea {
   min-height: 9rem;
   resize: vertical;
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
 }
 
 /* 輸入框 + 按鈕同一列 */
@@ -239,8 +302,9 @@ textarea {
 }
 
 input[type="file"] {
+  max-width: 100%;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 
@@ -258,6 +322,8 @@ input[type="file"]::file-selector-button {
 input[type="checkbox"] {
   width: 17px;
   height: 17px;
+  margin: 0;
+  vertical-align: middle;
   accent-color: var(--accent);
   cursor: pointer;
 }
@@ -271,7 +337,7 @@ input[type="checkbox"] {
   gap: 6px;
   padding: 8px 14px;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
@@ -320,7 +386,7 @@ input[type="checkbox"] {
 
 .btn-sm {
   padding: 5px 10px;
-  font-size: 0.82rem;
+  font-size: var(--fs-sm);
 }
 
 .btn[disabled],
@@ -336,6 +402,33 @@ input[type="checkbox"] {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* 手機：第一列「選取數量 … 重新載入」，第二列四個動作按鈕平均分配寬度 */
+@media (max-width: 720px) {
+  .toolbar {
+    width: 100%;
+  }
+
+  .toolbar #selection-count {
+    flex: 1;
+  }
+
+  .toolbar #reload-btn,
+  .toolbar::after {
+    order: 1;
+  }
+
+  /* 換行用的空元素 */
+  .toolbar::after {
+    content: "";
+    flex-basis: 100%;
+  }
+
+  .toolbar .btn:not(#reload-btn) {
+    order: 2;
+    flex: 1 1 auto;
+  }
 }
 
 /* ---------- 分段開關（手動執行模式） ---------- */
@@ -363,7 +456,7 @@ input[type="checkbox"] {
 .segmented span {
   display: block;
   padding: 5px 12px;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
   color: var(--muted);
   border-radius: 6px;
   white-space: nowrap;
@@ -395,7 +488,8 @@ input[type="checkbox"] {
   flex: 1;
   padding: 7px 10px;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
   color: var(--muted);
   background: transparent;
   border: 0;
@@ -412,19 +506,19 @@ input[type="checkbox"] {
 
 .table-wrap {
   overflow-x: auto;
-  margin: 0 -20px -18px;
+  margin: 0 calc(-1 * var(--pad-x)) -18px;
   border-top: 1px solid var(--border);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
 }
 
 caption {
   text-align: left;
-  padding: 0 20px 10px;
+  padding: 0 var(--pad-x) 10px;
 }
 
 th,
@@ -436,18 +530,23 @@ td {
 }
 
 th {
-  font-size: 0.78rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
   color: var(--muted);
   background: var(--surface-2);
 }
 
 th:first-child,
 td:first-child {
-  padding-left: 20px;
+  padding-left: var(--pad-x);
   width: 44px;
+}
+
+th:last-child,
+td:last-child {
+  padding-right: var(--pad-x);
 }
 
 tbody tr:last-child td {
@@ -458,10 +557,47 @@ tbody tr:hover {
   background: rgb(255 255 255 / 0.02);
 }
 
+/* 帳號欄吃剩下的寬度；email 過長時截斷（完整內容在 title） */
+td.cell-account {
+  width: 100%;
+  max-width: 0;
+}
+
+.email strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-account .row {
+  margin-top: 2px;
+  flex-wrap: nowrap;
+}
+
+/* GHA 欄只放「啟用 / 停用」，不換行 */
+td.cell-gha {
+  white-space: nowrap;
+}
+
+td.cell-run {
+  min-width: 190px;
+  max-width: 260px;
+}
+
+/* 錯誤訊息最多 3 行，完整內容在 title */
+td.cell-run .break {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
 td.actions {
   white-space: nowrap;
   text-align: right;
-  padding-right: 20px;
+  padding-right: var(--pad-x);
 }
 
 td.actions .row {
@@ -475,13 +611,130 @@ td.actions .row {
   padding: 32px;
 }
 
+/* 手機：表格改成一列一張卡片 */
+@media (max-width: 720px) {
+  .table-wrap {
+    overflow-x: visible;
+  }
+
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+  }
+
+  /* 表頭只留全選 */
+  thead tr {
+    display: flex;
+    align-items: center;
+    padding: 10px var(--pad-x);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  thead th {
+    display: none;
+    padding: 0;
+    border: 0;
+  }
+
+  thead th:first-child {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: auto;
+    padding: 0;
+  }
+
+  thead th:first-child::after {
+    content: "全選";
+  }
+
+  tbody tr {
+    display: grid;
+    grid-template-columns: 27px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sel acc gha"
+      ". usage usage"
+      ". run run";
+    column-gap: 10px;
+    row-gap: 12px;
+    padding: 14px var(--pad-x);
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  tbody td,
+  tbody td:first-child,
+  tbody td:last-child {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    border: 0;
+  }
+
+  td.cell-select {
+    grid-area: sel;
+    padding-top: 2px;
+  }
+
+  /* 以下選擇器與桌面版同權重，覆寫桌面的欄寬設定 */
+  td.cell-account {
+    grid-area: acc;
+    width: auto;
+    max-width: none;
+  }
+
+  td.cell-gha {
+    grid-area: gha;
+  }
+
+  td.cell-usage {
+    grid-area: usage;
+  }
+
+  td.cell-run {
+    grid-area: run;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* 手機寬度夠放完整 email，改成任意處換行而不是截斷 */
+  .email strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  td.empty {
+    grid-column: 1 / -1;
+    padding: 24px 0;
+  }
+}
+
 /* ---------- badge / 額度條 ---------- */
 
 .badge {
   display: inline-block;
   padding: 1px 8px;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
+  white-space: nowrap;
   border-radius: 999px;
   background: var(--surface-3);
   color: var(--muted);
@@ -508,7 +761,13 @@ td.actions .row {
 }
 
 .usage {
-  min-width: 240px;
+  min-width: 260px;
+}
+
+@media (max-width: 720px) {
+  .usage {
+    min-width: 0;
+  }
 }
 
 .usage-item+.usage-item {
@@ -519,7 +778,8 @@ td.actions .row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 0.85rem;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
 }
 
 .bar {
@@ -575,7 +835,17 @@ td.actions .row {
   border-left: 4px solid var(--accent);
   border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  #status {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
 }
 
 #status:empty {

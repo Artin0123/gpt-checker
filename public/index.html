@@ -30,7 +30,7 @@
             <h1>GPT Checker</h1>
             <p class="subtitle">Codex 帳號額度與啟動窗口管理</p>
           </div>
-          <div class="row">
+          <div class="row header-actions">
             <div class="segmented" role="radiogroup" aria-label="手動執行 GHA 時要做什麼">
               <label><input type="radio" name="manual-mode" value="usage" /><span>只查額度</span></label>
               <label><input type="radio" name="manual-mode" value="hi" /><span>查額度＋送 hi</span></label>
@@ -48,7 +48,7 @@
                 <h2 id="accounts-title">帳號</h2>
                 <span id="accounts-count" class="badge"></span>
               </div>
-              <div class="row" role="toolbar" aria-label="對選取的帳號執行">
+              <div class="row toolbar" role="toolbar" aria-label="對選取的帳號執行">
                 <span id="selection-count" class="muted small">未選取</span>
                 <button id="enable-btn" class="btn btn-sm" type="button" disabled>啟用</button>
                 <button id="disable-btn" class="btn btn-sm" type="button" disabled>停用</button>
