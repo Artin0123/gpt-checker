@@ -9,7 +9,7 @@
 - 密碼保護的面板（Cloudflare Pages + Pages Functions + KV），前端為純 HTML / JS。
 - 新增帳號：OAuth 登入（貼 callback 網址）或匯入 JSON（CLIProxyAPI 憑證、`~/.codex/auth.json`、codex-tools `accounts.json`）。
 - 匯出選取的帳號為 CLIProxyAPI 格式（可直接匯回）。
-- GitHub Actions 每 2 天查額度＋送 hi；也可手動執行（只查額度，或查額度＋送 hi）。
+- GitHub Actions 每天查額度＋送 hi；也可手動執行（只查額度，或查額度＋送 hi）。
 - Discord 通知每個帳號的結果、剩餘額度與重置時間，異常排在最前面。
 
 ## 架構
@@ -56,7 +56,7 @@ flowchart LR
 
 | 觸發                             | 模式          | Discord | 更新「最近送 hi」 |
 | -------------------------------- | ------------- | ------- | ----------------- |
-| 排程（`0 0 */2 * *` UTC）        | 查額度＋送 hi | 通知    | 是                |
+| 排程（`0 0 * * *` UTC，每天 00:00） | 查額度＋送 hi | 通知    | 是                |
 | 手動，開關為「只查額度」（預設） | 只查額度      | 不通知  | 否                |
 | 手動，開關為「查額度＋送 hi」    | 查額度＋送 hi | 通知    | 是                |
 
@@ -177,7 +177,6 @@ docs/pitfalls.md            踩坑紀錄與設計判斷
 
 ## 已知限制
 
-- 排程 `*/2` 在月底可能連續兩天執行。
 - public repo 60 天沒有活動，GitHub 會停用排程 workflow。
 - 付費方案（5 小時 / 每週窗口）的送 hi 邏輯沒有用真實帳號驗證過。
 - 一次匯入超過約 990 個帳號會碰到 KV 每天 1,000 次寫入上限。

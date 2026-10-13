@@ -4,7 +4,7 @@
 **Implementation Plan：GPT Checker（Cloudflare Pages）**
 
 **Problem Statement**
-在 Cloudflare Pages 上做一個有密碼保護的面板，用來管理 ChatGPT/Codex 帳號，功能包括 OAuth 登入、匯入匯出、查額度。GHA 每 2 天執行一次，也可以手動執行：對勾選的帳號檢查條件，符合的就送一句 "hi" 啟動額度窗口，結果通知到 Discord。
+在 Cloudflare Pages 上做一個有密碼保護的面板，用來管理 ChatGPT/Codex 帳號，功能包括 OAuth 登入、匯入匯出、查額度。GHA 每天執行一次，也可以手動執行：對勾選的帳號檢查條件，符合的就送一句 "hi" 啟動額度窗口，結果通知到 Discord。
 
 **Requirements**
 - 登入：照 CPA 的做法。
@@ -17,7 +17,7 @@
 - 驗證：面板用密碼加 HMAC 簽章 cookie。`/api/*` 全部要驗證：瀏覽器帶 cookie，GHA 帶 `Authorization: Bearer <PANEL_PASSWORD>`，一律用 constant-time 比對。
 - 查額度：面板上手動刷新，只顯示結果，不發通知。
 - 送 hi 的條件：任一額度窗口 `used_percent == 0`（剩 100%），而且距離重置 ≥ 29 天。重置時間優先用 `reset_after_seconds`，沒有的話用 `reset_at - now`。
-- GHA：cron `0 0 */2 * *`（UTC），加上 `workflow_dispatch`。面板上存 GHA workflow 的網址，按鈕點了直接跳過去。
+- GHA：cron `0 0 * * *`（UTC，每天 00:00），加上 `workflow_dispatch`。面板上存 GHA workflow 的網址，按鈕點了直接跳過去。
 - 通知：只有 GHA 會發。內容包括每個帳號的結果（已送、略過、失敗）、剩餘額度、重置時間。異常（token 刷新失敗、refresh token 失效、查額度失敗、送 hi 失敗）會醒目標示。
 - 技術選型：Pages Functions 加 TypeScript，前端純 HTML/JS，測試用 Vitest。依賴一律鎖定精確版本。
 
@@ -43,7 +43,7 @@
 ```mermaid
 flowchart LR
   U[瀏覽器面板] -- cookie --> F[Pages Functions /api/*]
-  G[GHA cron 每2天 / 手動] -- Bearer 密碼 --> F
+  G[GHA cron 每天 / 手動] -- Bearer 密碼 --> F
   F <--> KV[(KV: account:* / oauth:* / lock:* / config)]
   F --> A[auth.openai.com<br/>換 token / refresh]
   F --> W[chatgpt.com<br/>wham/usage · codex/responses]
@@ -171,7 +171,7 @@ wrangler.toml / vitest.config.ts / package.json
     2. 逐一呼叫 hi API，單一帳號失敗不影響其他帳號。
     3. 組成 Discord embed。一則訊息最多 10 個 embed，超過就分批送。每個帳號顯示結果、剩餘 %、重置時間。有異常時用紅色 embed 放在最前面。
     4. 呼叫面板 API 失敗時，也要送一則異常通知。
-  - `.github/workflows/hi.yml`：`schedule: cron '0 0 */2 * *'` 加上 `workflow_dispatch`，Node 22，`npm ci`，再執行 `npx tsx scripts/gha-hi.ts`。
+  - `.github/workflows/hi.yml`：`schedule: cron '0 0 * * *'` 加上 `workflow_dispatch`，Node 22，`npm ci`，再執行 `npx tsx scripts/gha-hi.ts`。
 - 測試：mock 面板 API 和 Discord，涵蓋 embed 內容、分批、異常置頂、API 整個掛掉的情況。
 - Demo：在 GitHub 上按 Run workflow，Discord 收到每個帳號的結果。故意改錯密碼再跑一次，會收到異常通知。
 

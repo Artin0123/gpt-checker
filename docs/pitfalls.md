@@ -113,7 +113,7 @@
 - **不跑 `npm ci`**：devDependencies 含 wrangler / workerd，裝起來約 250 MB，但 GHA 腳本只 import 專案內的 `src/`，沒有執行期依賴。workflow 直接 `npx --yes tsx@<版本>`；版本要和 `package.json` 一致，`test/workflow.test.ts` 會檢查。
 - **Discord 訊息限制**：一則最多 10 個 embed，而且所有 embed 的字數合計最多 6000。原本只按 10 個分批，帳號多、錯誤訊息長時會超過 6000 被拒絕、run 變紅。現在同時按個數與字數分批。
 - **Discord webhook 存在面板而不是 GitHub secret**：改網址不用動 GitHub；GHA 執行時向面板讀取。面板本身有密碼保護、匯出也含 token，所以面板直接顯示完整網址。
-- 已知可接受：cron `0 0 */2 * *` 在月底可能連續兩天執行；public repo 60 天沒活動，排程會被 GitHub 停用。
+- 已知可接受：public repo 60 天沒活動，排程會被 GitHub 停用。（先前用 `0 0 */2 * *` 時月底可能連續兩天執行，改成每天 `0 0 * * *` 後已無此問題。）
 
 ## 前端
 
